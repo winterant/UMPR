@@ -1,0 +1,4 @@
+/data
+/embedding
+/venv
+!/data/reviews_small.json
