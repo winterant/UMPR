@@ -1,6 +1,5 @@
 UMPR
 ===
-
 > Codes for "Recommendation by Users' Multi-modal Preferences for Smart City Applications".  
 
 # Current work
