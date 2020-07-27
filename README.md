@@ -20,6 +20,8 @@ pip install -r requirements.txt
 
 # Running
 
+Please first correct the file path at the top of the "main.py"
+
 ```shell script
 python main.py
 ```
