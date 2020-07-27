@@ -1,4 +1,4 @@
-/data
 /embedding
 /venv
+/data/*
 !/data/reviews_small.json
