@@ -13,7 +13,7 @@ embedding_path = "embedding/glove.twitter.27B.50d.txt"
 word_embedding_dim = 50  # set according to embedding_path
 sent_length = 50  # length of a sentence
 sequence_length = 500  # a input data dim, multiple of sent_length
-learning_rate = 1e-5
+learning_rate = 1e-3
 batch_size = 32
 rnn_dim = 64  # u, hidden layer size
 k = 64  # k, hyper parameter for self-attention
@@ -24,10 +24,12 @@ embeddings, word_id = read_word_embedding(embedding_path, word_embedding_dim)
 embedding_matrix = get_embedding_matrix(embeddings, word_embedding_dim)
 
 print("###### Reading data! ######")
-dataset = read_yelp_json(train_path)
-train_count = int(len(dataset) * 0.9)
-RUIs, RUs, RIs, yUIs = get_training_data(dataset[:train_count], word_id, sent_length, sequence_length)
-dev_RUIs, dev_RUs, dev_RIs, dev_yUIs = get_training_data(dataset[train_count:], word_id, sent_length, sequence_length)
+dataset = read_from_json(train_path, word_id, sent_length, sequence_length)
+train_count = int(len(dataset[3]) * 0.9)
+RUIs, RUs, RIs, yUIs =\
+    dataset[0][:train_count], dataset[1][:train_count], dataset[2][:train_count], dataset[3][:train_count]
+dev_RUIs, dev_RUs, dev_RIs, dev_yUIs =\
+    dataset[0][train_count:], dataset[1][train_count:], dataset[2][train_count:], dataset[3][train_count:]
 
 print("###### Model forward! ######")
 RUI_batch = tf.placeholder(tf.int32, shape=(None, sequence_length), name="user_reviews_for_item_i")
@@ -43,7 +45,7 @@ with tf.variable_scope("Embedding"):
     RI_emb = tf.nn.embedding_lookup(W, RI_batch, name="RI_lookup")  # shape(in_batch_size,m,word_dim)
 
 # Review Network | R-net, H shape(bs,2u,m), a shape=(bs,m), r shape=(bs,2u)
-HU, HI, aUI_fw, aUI_bw, rUI_fw, rUI_bw = R_net(RU_emb, RI_emb, rnn_dim, batch_size, sequence_length, "R-net")
+HU, HI, aUI_fw, aUI_bw, rUI_fw, rUI_bw = R_net(RU_emb, RI_emb, rnn_dim, in_batch_size, sequence_length, "R-net")
 
 # Review Network | S-Net, S shape=(batch_size,2u)
 S_U = S_net(HU, aUI_bw, rnn_dim, in_batch_size, sent_length, k, "S-net-RU")
@@ -78,7 +80,6 @@ optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
 # Session
 with tf.Session() as sess:
-    tf.device("/gpu:1")
     sess.run(tf.global_variables_initializer())
     print("###### Training begins! ######")
     clock1 = time.clock()
@@ -101,6 +102,6 @@ with tf.Session() as sess:
                 RI_batch: dev_RIs[i:i + 1], label_batch: dev_yUIs[i:i + 1]}
         result = sess.run(y_sm, feed_dict=feed)
         y_pred = np.argmax(np.squeeze(result)) + 1
-        if y_pred == dev_yUIs[i]:
+        if abs(y_pred - dev_yUIs[i]) < 0.1:
             correct += 1
     print("Test count: %5d, correct: %5d, accuracy: %.4f%%" % (test_count, correct, correct / test_count * 100))
