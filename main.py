@@ -113,6 +113,6 @@ with tf.Session() as sess:
         y_pred = np.argmax(np.squeeze(result, axis=0)) + 1
         if y_pred == dev_yUIs[i]:
             correct += 1
-        if i % 100 == 0:
+        if i % 20 == 0:
             print("%d/%d, yUI:%d, prediction:%d, %s" % (i + 1, test_count, dev_yUIs[i], y_pred, dev_yUIs[i] == y_pred))
     print("Test count: %5d, correct: %5d, accuracy: %.4f%%" % (test_count, correct, correct / test_count * 100))
