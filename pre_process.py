@@ -1,4 +1,3 @@
-import csv
 import json
 import re
 
@@ -32,9 +31,9 @@ def get_embedding_matrix(embeddings, word_embedding_dim):
 def word_to_ids(word_sequence, word_id):
     words_id_sequence = []
     for word in word_sequence:
-        if word in word_id:
+        if word in word_id.keys():
             words_id_sequence.append(word_id[word])
-        elif word.lower() in word_id:
+        elif word.lower() in word_id.keys():
             words_id_sequence.append(word_id[word.lower()])
         else:
             words_id_sequence.append(0)
@@ -65,20 +64,18 @@ def read_from_json(filepath, word_id, sent_length, sequence_length):
             RU_data.setdefault(review['user_id'], list()).append([review['text'], review['business_id'], review['stars']])
             RI_data.setdefault(review['business_id'], list()).append([review['text'], review['user_id']])
     RUIs, RUs, RIs, yUIs = list(), list(), list(), list()
-    for uid, rus in RU_data.items():
-        for bid, ris in RI_data.items():
+    for uid in RU_data.keys():
+        for bid in set([ru[1] for ru in RU_data[uid]]):
             RUI_list, RU_list, RI_list = list(), list(), list()
             yUI, y_count = 0, 0
-            for ru in rus:
+            for ru in RU_data[uid]:
                 if ru[1] == bid:
                     RUI_list.extend(review_sentences(ru[0]))  # 分句
                     yUI += ru[2]  # rating sum
                     y_count += 1
                 else:
                     RU_list.extend(review_sentences(ru[0]))
-            if y_count == 0:
-                continue
-            for ri in ris:
+            for ri in RI_data[bid]:
                 if ri[1] != uid:
                     RI_list.extend(review_sentences(ri[0]))
             RUI = handle_sent_list(RUI_list, word_id, sent_length, sequence_length)  # 分词->词映射
@@ -88,7 +85,6 @@ def read_from_json(filepath, word_id, sent_length, sequence_length):
             RUs.append(RU)
             RIs.append(RI)
             yUIs.append(round(yUI / y_count))
-
     return np.array(RUIs), np.array(RUs), np.array(RIs), np.array(yUIs)
 
 

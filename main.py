@@ -1,8 +1,9 @@
 import time
 
 import tensorflow as tf
+import numpy as np
 
-from pre_process import *
+from pre_process import read_word_embedding, get_embedding_matrix, read_from_json
 from sub_net import R_net, S_net
 
 # Data path
@@ -11,24 +12,31 @@ embedding_path = "embedding/glove.twitter.27B.50d.txt"
 
 # Model parameters
 word_embedding_dim = 50  # set according to embedding_path
-sent_length = 50  # length of a sentence
-sequence_length = 500  # a input data dim, multiple of sent_length
-learning_rate = 1e-5
+sent_length = 30  # length of a sentence
+sequence_length = 300  # a input data dim, multiple of sent_length
+learning_rate = 1e-6
 batch_size = 32
 rnn_dim = 64  # u, hidden layer size
 k = 64  # k, hyper parameter for self-attention
-training_epochs = 5  # training epochs
+training_epochs = 20  # training epochs
 
 print("###### Load word embedding! ######")
-embeddings, word_id = read_word_embedding(embedding_path, word_embedding_dim)
-embedding_matrix = get_embedding_matrix(embeddings, word_embedding_dim)
+try:
+    with np.load('embedding/embedding.npy.npz', allow_pickle=True) as embedding:
+        word_id, embedding_matrix = embedding['wid'][()], embedding['em']
+    print("  #### Loaded embedding from embedding.npy!")
+except FileNotFoundError:
+    embeddings, word_id = read_word_embedding(embedding_path, word_embedding_dim)
+    embedding_matrix = get_embedding_matrix(embeddings, word_embedding_dim)
+    np.savez('embedding/embedding.npy', wid=word_id, em=embedding_matrix)
+    print("  #### Loaded embedding from text file! Saved as embedding.npy.npz!")
 
 print("###### Reading data! ######")
 dataset = read_from_json(train_path, word_id, sent_length, sequence_length)
 train_count = int(len(dataset[3]) * 0.9)
-RUIs, RUs, RIs, yUIs =\
+RUIs, RUs, RIs, yUIs = \
     dataset[0][:train_count], dataset[1][:train_count], dataset[2][:train_count], dataset[3][:train_count]
-dev_RUIs, dev_RUs, dev_RIs, dev_yUIs =\
+dev_RUIs, dev_RUs, dev_RIs, dev_yUIs = \
     dataset[0][train_count:], dataset[1][train_count:], dataset[2][train_count:], dataset[3][train_count:]
 
 print("###### Model forward! ######")
@@ -64,14 +72,16 @@ with tf.variable_scope("Textual_Matching"):
 
 # Review Network and Visual Network | Fusion for Rating
 with tf.variable_scope("FusionR"):
-    W = tf.get_variable('W', (5, 6 * rnn_dim), initializer=tf.truncated_normal_initializer(stddev=0.1))
+    # W = tf.get_variable('W', (5, 6 * rnn_dim), initializer=tf.truncated_normal_initializer(stddev=0.1))
+    W = tf.get_variable('W', (5, 2 * rnn_dim), initializer=tf.truncated_normal_initializer(stddev=0.1))
     b = tf.get_variable('b', (5,), initializer=tf.truncated_normal_initializer(stddev=0.1))
     W_expand = tf.tile(tf.expand_dims(W, 0), (in_batch_size, 1, 1))
     b_expand = tf.tile(tf.expand_dims(b, 0), (in_batch_size, 1))
-    xV_p = tf.zeros((in_batch_size, 2 * rnn_dim))  # todo 临时代替Visual Network的输出
-    xV_n = tf.zeros((in_batch_size, 2 * rnn_dim))
-    x = tf.concat([xT, xV_p, xV_n], axis=1)  # shape=(in_batch_size,6u)
-    y_sm = tf.nn.softmax(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(x, 2)), [2]) + b_expand)
+    # xV_p = tf.zeros((in_batch_size, 2 * rnn_dim))  # todo 临时代替Visual Network的输出
+    # xV_n = tf.zeros((in_batch_size, 2 * rnn_dim))
+    # x = tf.concat([xT, xV_p, xV_n], axis=1)  # shape=(in_batch_size,6u)
+    # y_sm = tf.nn.softmax(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(x, 2)), [2]) + b_expand)
+    y_sm = tf.nn.softmax(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(xT, 2)), [2]) + b_expand)
 
 # Loss function and Optimizer
 label_one_hot = tf.one_hot(label_batch - tf.ones(tf.shape(label_batch), dtype=tf.int32), depth=5)
@@ -101,7 +111,9 @@ with tf.Session() as sess:
         feed = {RUI_batch: dev_RUIs[i:i + 1], RU_batch: dev_RUs[i:i + 1],
                 RI_batch: dev_RIs[i:i + 1], label_batch: dev_yUIs[i:i + 1]}
         result = sess.run(y_sm, feed_dict=feed)
-        y_pred = np.argmax(np.squeeze(result)) + 1
-        if abs(y_pred - dev_yUIs[i]) <= 0.5:
+        y_pred = np.argmax(np.squeeze(result, axis=0)) + 1
+        if y_pred == dev_yUIs[i]:
             correct += 1
+        if i % 100 == 0:
+            print("%d/%d, yUI:%d, prediction:%d, %s" % (i + 1, test_count, dev_yUIs[i], y_pred, dev_yUIs[i] == y_pred))
     print("Test count: %5d, correct: %5d, accuracy: %.4f%%" % (test_count, correct, correct / test_count * 100))
