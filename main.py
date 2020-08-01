@@ -14,21 +14,20 @@ embedding_path = "embedding/glove.twitter.27B.50d.txt"
 word_embedding_dim = 50  # set according to embedding_path
 sent_length = 30  # length of a sentence
 sequence_length = 300  # a input data dim, multiple of sent_length
-learning_rate = 1e-6
+learning_rate = 1e-5
 batch_size = 32
 rnn_dim = 64  # u, hidden layer size
 k = 64  # k, hyper parameter for self-attention
-training_epochs = 20  # training epochs
+training_epochs = 5  # training epochs
 
 print("###### Load word embedding! ######")
 try:
     with np.load('embedding/embedding.npy.npz', allow_pickle=True) as embedding:
-        word_id, embedding_matrix = embedding['wid'][()], embedding['em']
+        embedding_matrix, word_id = embedding['em'], embedding['wid'][()]
     print("  #### Loaded embedding from embedding.npy!")
 except FileNotFoundError:
-    embeddings, word_id = read_word_embedding(embedding_path, word_embedding_dim)
-    embedding_matrix = get_embedding_matrix(embeddings, word_embedding_dim)
-    np.savez('embedding/embedding.npy', wid=word_id, em=embedding_matrix)
+    embedding_matrix, word_id = read_word_embedding(embedding_path, word_embedding_dim)
+    np.savez('embedding/embedding.npy', em=embedding_matrix, wid=word_id)
     print("  #### Loaded embedding from text file! Saved as embedding.npy.npz!")
 
 print("###### Reading data! ######")
@@ -77,11 +76,11 @@ with tf.variable_scope("FusionR"):
     b = tf.get_variable('b', (5,), initializer=tf.truncated_normal_initializer(stddev=0.1))
     W_expand = tf.tile(tf.expand_dims(W, 0), (in_batch_size, 1, 1))
     b_expand = tf.tile(tf.expand_dims(b, 0), (in_batch_size, 1))
-    # xV_p = tf.zeros((in_batch_size, 2 * rnn_dim))  # todo 临时代替Visual Network的输出
+    # xV_p = tf.zeros((in_batch_size, 2 * rnn_dim))  # 临时代替Visual Network的输出
     # xV_n = tf.zeros((in_batch_size, 2 * rnn_dim))
     # x = tf.concat([xT, xV_p, xV_n], axis=1)  # shape=(in_batch_size,6u)
-    # y_sm = tf.nn.softmax(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(x, 2)), [2]) + b_expand)
-    y_sm = tf.nn.softmax(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(xT, 2)), [2]) + b_expand)
+    # y_sm = tf.nn.softmax(tf.nn.sigmoid(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(x, 2)), [2]) + b_expand))
+    y_sm = tf.nn.softmax(tf.nn.sigmoid(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(xT, 2)), [2]) + b_expand))
 
 # Loss function and Optimizer
 label_one_hot = tf.one_hot(label_batch - tf.ones(tf.shape(label_batch), dtype=tf.int32), depth=5)

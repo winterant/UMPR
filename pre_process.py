@@ -18,7 +18,10 @@ def read_word_embedding(embedding_path, word_embedding_dim):
                 embeddings[ids] = np.array(values[1:], dtype="float32")
                 word_id[values[0]] = ids
                 ids += 1
-    return embeddings, word_id  # embeddings{id: embedding},word_id: {word: id}
+    embedding_matrix = np.zeros((ids, word_embedding_dim))
+    for i, vec in embeddings.items():
+        embedding_matrix[i] = vec
+    return embedding_matrix, word_id  # word_id: {word: id}
 
 
 def get_embedding_matrix(embeddings, word_embedding_dim):
