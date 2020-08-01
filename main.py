@@ -13,7 +13,7 @@ embedding_path = "embedding/glove.twitter.27B.50d.txt"
 word_embedding_dim = 50  # set according to embedding_path
 sent_length = 50  # length of a sentence
 sequence_length = 500  # a input data dim, multiple of sent_length
-learning_rate = 1e-3
+learning_rate = 1e-5
 batch_size = 32
 rnn_dim = 64  # u, hidden layer size
 k = 64  # k, hyper parameter for self-attention
@@ -74,8 +74,8 @@ with tf.variable_scope("FusionR"):
     y_sm = tf.nn.softmax(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(x, 2)), [2]) + b_expand)
 
 # Loss function and Optimizer
-label_one_hot = tf.to_float(tf.one_hot(label_batch - tf.ones(tf.shape(label_batch), dtype=tf.int32), depth=5))
-loss = tf.reduce_sum(tf.reduce_mean(tf.square(label_one_hot - y_sm), axis=1))
+label_one_hot = tf.one_hot(label_batch - tf.ones(tf.shape(label_batch), dtype=tf.int32), depth=5)
+loss = tf.reduce_mean(tf.square(tf.to_float(label_one_hot) - y_sm))
 optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
 # Session
@@ -102,6 +102,6 @@ with tf.Session() as sess:
                 RI_batch: dev_RIs[i:i + 1], label_batch: dev_yUIs[i:i + 1]}
         result = sess.run(y_sm, feed_dict=feed)
         y_pred = np.argmax(np.squeeze(result)) + 1
-        if abs(y_pred - dev_yUIs[i]) < 0.1:
+        if abs(y_pred - dev_yUIs[i]) <= 0.5:
             correct += 1
     print("Test count: %5d, correct: %5d, accuracy: %.4f%%" % (test_count, correct, correct / test_count * 100))

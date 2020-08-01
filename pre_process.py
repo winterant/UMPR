@@ -87,7 +87,7 @@ def read_from_json(filepath, word_id, sent_length, sequence_length):
             RUIs.append(RUI)
             RUs.append(RU)
             RIs.append(RI)
-            yUIs.append(float(yUI / y_count))
+            yUIs.append(round(yUI / y_count))
 
     return np.array(RUIs), np.array(RUs), np.array(RIs), np.array(yUIs)
 
