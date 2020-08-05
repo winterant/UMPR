@@ -12,11 +12,11 @@ embedding_path = "embedding/glove.twitter.27B.50d.txt"
 word_embedding_dim = 50  # set according to embedding_path
 sent_length = 30  # length of a sentence
 sequence_length = 300  # a input data dim, multiple of sent_length
-learning_rate = 1e-5
+learning_rate = 1e-4
 batch_size = 32
 rnn_dim = 64  # u, hidden layer size
 k = 64  # k, hyper parameter for self-attention
-training_epochs = 1  # training epochs
+training_epochs = 3  # training epochs
 
 print("###### Load word embedding! ######")
 try:
@@ -40,7 +40,7 @@ print("###### Model forward! ######")
 RUI_batch = tf.placeholder(tf.int32, shape=(None, sequence_length), name="user_reviews_for_item_i")
 RU_batch = tf.placeholder(tf.int32, shape=(None, sequence_length), name="user_reviews")
 RI_batch = tf.placeholder(tf.int32, shape=(None, sequence_length), name="item_reviews")
-label_batch = tf.placeholder(tf.int32, shape=(None,), name="label_batch")
+label_batch = tf.placeholder(tf.float32, shape=(None,), name="label_batch")
 in_batch_size = tf.shape(label_batch)[0]  # Actual inputting batch size
 # Embedding, m = n = sequence_length
 with tf.variable_scope("Embedding"):
@@ -70,19 +70,20 @@ with tf.variable_scope("Textual_Matching"):
 # Review Network and Visual Network | Fusion for Rating
 with tf.variable_scope("FusionR"):
     # W = tf.get_variable('W', (5, 6 * rnn_dim), initializer=tf.truncated_normal_initializer(stddev=0.1))
-    W = tf.get_variable('W', (5, 2 * rnn_dim), initializer=tf.truncated_normal_initializer(stddev=0.1))
-    b = tf.get_variable('b', (5,), initializer=tf.truncated_normal_initializer(stddev=0.1))
+    W = tf.get_variable('W', (1, 2 * rnn_dim), initializer=tf.truncated_normal_initializer(stddev=0.1))
+    b = tf.get_variable('b', (1,), initializer=tf.truncated_normal_initializer(stddev=0.1))
     W_expand = tf.tile(tf.expand_dims(W, 0), (in_batch_size, 1, 1))
-    b_expand = tf.tile(tf.expand_dims(b, 0), (in_batch_size, 1))
+    b_expand = tf.tile(b, (in_batch_size,))
     # xV_p = tf.zeros((in_batch_size, 2 * rnn_dim))  # 临时代替Visual Network的输出
     # xV_n = tf.zeros((in_batch_size, 2 * rnn_dim))
     # x = tf.concat([xT, xV_p, xV_n], axis=1)  # shape=(in_batch_size,6u)
     # y_sm = tf.nn.softmax(tf.nn.sigmoid(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(x, 2)), [2]) + b_expand))
-    y_sm = tf.squeeze(tf.matmul(W_expand, tf.expand_dims(xT, 2)), [2]) + b_expand
+    y_sm = tf.squeeze(tf.matmul(W_expand, tf.expand_dims(xT, 2)), [1, 2]) + b_expand
 
 # Loss function and Optimizer
-label_one_hot = tf.to_float(tf.one_hot(label_batch - tf.ones(tf.shape(label_batch), dtype=tf.int32), depth=5))
-loss = tf.reduce_mean(tf.square(label_one_hot - y_sm))
+# label_one_hot = tf.to_float(tf.one_hot(label_batch - tf.ones(tf.shape(label_batch), dtype=tf.int32), depth=5))
+# loss = tf.reduce_mean(tf.square(label_one_hot - y_sm))
+loss = tf.reduce_mean(tf.square(label_batch - y_sm))
 # loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
 #     labels=(label_batch-tf.ones(tf.shape(label_batch), tf.int32)), logits=y_sm))
 optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
@@ -105,18 +106,14 @@ with tf.Session() as sess:
                   (epoch + 1, training_epochs, i + 1, batch_count, real_loss, time.clock() - clock1))
     print("###### Testing begins! ######")
     test_count = len(dev_yUIs)
-    level_count = [0] * 5
     correct = 0
     for i in range(test_count):
-        level_count[dev_yUIs[i] - 1] += 1
         feed = {RUI_batch: dev_RUIs[i:i + 1], RU_batch: dev_RUs[i:i + 1],
                 RI_batch: dev_RIs[i:i + 1], label_batch: dev_yUIs[i:i + 1]}
         result = sess.run(y_sm, feed_dict=feed)
         y_pred = np.argmax(np.squeeze(result, axis=0)) + 1
-        if y_pred == dev_yUIs[i]:
+        if abs(y_pred - dev_yUIs[i]) < 0.5:
             correct += 1
         if i % 20 == 0:
-            print("%d/%d, yUI:%d, prediction:%d, %s" % (i + 1, test_count, dev_yUIs[i], y_pred, dev_yUIs[i] == y_pred))
-    for i in range(5):
-        print("%d star: %3d/%3d = %4.2f%%" % (i + 1, level_count[i], test_count, level_count[i] / test_count * 100))
+            print("%d/%d, yUI:%.1f, prediction:%.1f, %s" % (i + 1, test_count, dev_yUIs[i], y_pred, dev_yUIs[i] == y_pred))
     print("Accuracy: %4d/%4d = %.4f%%" % (correct, test_count, correct / test_count * 100))
