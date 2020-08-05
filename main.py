@@ -1,13 +1,11 @@
 import time
-
 import tensorflow as tf
 import numpy as np
-
-from pre_process import read_word_embedding, get_embedding_matrix, read_from_json
+from pre_process import read_word_embedding, read_from_json
 from sub_net import R_net, S_net
 
 # Data path
-train_path = "data/reviews_small.json"
+train_path = "data/reviews.json"
 embedding_path = "embedding/glove.twitter.27B.50d.txt"
 
 # Model parameters
@@ -18,13 +16,13 @@ learning_rate = 1e-5
 batch_size = 32
 rnn_dim = 64  # u, hidden layer size
 k = 64  # k, hyper parameter for self-attention
-training_epochs = 5  # training epochs
+training_epochs = 1  # training epochs
 
 print("###### Load word embedding! ######")
 try:
     with np.load('embedding/embedding.npy.npz', allow_pickle=True) as embedding:
         embedding_matrix, word_id = embedding['em'], embedding['wid'][()]
-    print("  #### Loaded embedding from embedding.npy!")
+    print("  #### Loaded embedding from embedding.npy.npz!")
 except FileNotFoundError:
     embedding_matrix, word_id = read_word_embedding(embedding_path, word_embedding_dim)
     np.savez('embedding/embedding.npy', em=embedding_matrix, wid=word_id)
@@ -80,12 +78,14 @@ with tf.variable_scope("FusionR"):
     # xV_n = tf.zeros((in_batch_size, 2 * rnn_dim))
     # x = tf.concat([xT, xV_p, xV_n], axis=1)  # shape=(in_batch_size,6u)
     # y_sm = tf.nn.softmax(tf.nn.sigmoid(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(x, 2)), [2]) + b_expand))
-    y_sm = tf.nn.softmax(tf.nn.sigmoid(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(xT, 2)), [2]) + b_expand))
+    y_sm = tf.squeeze(tf.matmul(W_expand, tf.expand_dims(xT, 2)), [2]) + b_expand
 
 # Loss function and Optimizer
-label_one_hot = tf.one_hot(label_batch - tf.ones(tf.shape(label_batch), dtype=tf.int32), depth=5)
-loss = tf.reduce_mean(tf.square(tf.to_float(label_one_hot) - y_sm))
-optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
+label_one_hot = tf.to_float(tf.one_hot(label_batch - tf.ones(tf.shape(label_batch), dtype=tf.int32), depth=5))
+loss = tf.reduce_mean(tf.square(label_one_hot - y_sm))
+# loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+#     labels=(label_batch-tf.ones(tf.shape(label_batch), tf.int32)), logits=y_sm))
+optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
 
 # Session
 with tf.Session() as sess:
@@ -105,8 +105,10 @@ with tf.Session() as sess:
                   (epoch + 1, training_epochs, i + 1, batch_count, real_loss, time.clock() - clock1))
     print("###### Testing begins! ######")
     test_count = len(dev_yUIs)
+    level_count = [0] * 5
     correct = 0
     for i in range(test_count):
+        level_count[dev_yUIs[i] - 1] += 1
         feed = {RUI_batch: dev_RUIs[i:i + 1], RU_batch: dev_RUs[i:i + 1],
                 RI_batch: dev_RIs[i:i + 1], label_batch: dev_yUIs[i:i + 1]}
         result = sess.run(y_sm, feed_dict=feed)
@@ -115,4 +117,6 @@ with tf.Session() as sess:
             correct += 1
         if i % 20 == 0:
             print("%d/%d, yUI:%d, prediction:%d, %s" % (i + 1, test_count, dev_yUIs[i], y_pred, dev_yUIs[i] == y_pred))
-    print("Test count: %5d, correct: %5d, accuracy: %.4f%%" % (test_count, correct, correct / test_count * 100))
+    for i in range(5):
+        print("%d star: %3d/%3d = %4.2f%%" % (i + 1, level_count[i], test_count, level_count[i] / test_count * 100))
+    print("Accuracy: %4d/%4d = %.4f%%" % (correct, test_count, correct / test_count * 100))

@@ -24,13 +24,6 @@ def read_word_embedding(embedding_path, word_embedding_dim):
     return embedding_matrix, word_id  # word_id: {word: id}
 
 
-def get_embedding_matrix(embeddings, word_embedding_dim):
-    embedding_matrix = np.zeros((len(embeddings), word_embedding_dim))
-    for i, vec in embeddings.items():
-        embedding_matrix[i] = vec
-    return embedding_matrix
-
-
 def word_to_ids(word_sequence, word_id):
     words_id_sequence = []
     for word in word_sequence:
@@ -64,8 +57,8 @@ def read_from_json(filepath, word_id, sent_length, sequence_length):
     with open(filepath, encoding='utf-8') as f:
         for line in f.readlines():
             review = json.loads(line)
-            RU_data.setdefault(review['user_id'], list()).append([review['text'], review['business_id'], review['stars']])
-            RI_data.setdefault(review['business_id'], list()).append([review['text'], review['user_id']])
+            RU_data.setdefault(review['user_id'], []).append([review['text'], review['business_id'], review['stars']])
+            RI_data.setdefault(review['business_id'], []).append([review['text'], review['user_id']])
     RUIs, RUs, RIs, yUIs = list(), list(), list(), list()
     for uid in RU_data.keys():
         for bid in set([ru[1] for ru in RU_data[uid]]):
@@ -89,30 +82,3 @@ def read_from_json(filepath, word_id, sent_length, sequence_length):
             RIs.append(RI)
             yUIs.append(round(yUI / y_count))
     return np.array(RUIs), np.array(RUs), np.array(RIs), np.array(yUIs)
-
-
-# if __name__ == '__main__':
-#     train_path = "./data/reviews_small.json"
-#     embedding_path = "embedding/glove.twitter.27B.50d.txt"
-#     word_embedding_dim = 50  # set according to embedding_path
-#
-#     print("###### Load word embedding! ######")
-#     embeddings, word_id = read_word_embedding(embedding_path, word_embedding_dim)
-#     # embedding_matrix = get_embedding_matrix(embeddings)
-#
-#     print("###### Reading data! ######")
-#     dataset = read_yelp_json(train_path)
-#     training_data = get_training_data(dataset, word_id, 50, 500)
-#
-#     print("###### display data sample! ######")
-#     sample_id = 2
-#     print("a sample of dataset[%d]:" % sample_id)
-#     print('user_id:', dataset[sample_id][4], 'business_id:', dataset[sample_id][5])
-#     for i in range(3):
-#         for samp in dataset[sample_id][i]:
-#             print(samp)
-#         print("--------------------------------------")
-#     print("a sample of training data[%d]:" % sample_id)
-#     print("RUI:", training_data[sample_id][0])
-#     print("RU :", training_data[sample_id][1])
-#     print("RI :", training_data[sample_id][2])
