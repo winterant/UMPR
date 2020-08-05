@@ -111,9 +111,10 @@ with tf.Session() as sess:
         feed = {RUI_batch: dev_RUIs[i:i + 1], RU_batch: dev_RUs[i:i + 1],
                 RI_batch: dev_RIs[i:i + 1], label_batch: dev_yUIs[i:i + 1]}
         result = sess.run(y_sm, feed_dict=feed)
-        y_pred = np.argmax(np.squeeze(result, axis=0)) + 1
+        # y_pred = np.argmax(np.squeeze(result, axis=0))
+        y_pred = float(np.squeeze(result))
         if abs(y_pred - dev_yUIs[i]) < 0.5:
             correct += 1
         if i % 20 == 0:
-            print("%d/%d, yUI:%.1f, prediction:%.1f, %s" % (i + 1, test_count, dev_yUIs[i], y_pred, dev_yUIs[i] == y_pred))
+            print("%d/%d, yUI:%.1f, prediction:%.1f" % (i + 1, test_count, dev_yUIs[i], y_pred))
     print("Accuracy: %4d/%4d = %.4f%%" % (correct, test_count, correct / test_count * 100))
