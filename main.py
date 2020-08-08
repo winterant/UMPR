@@ -16,7 +16,7 @@ learning_rate = 1e-4
 batch_size = 32
 rnn_dim = 64  # u, hidden layer size
 k = 64  # k, hyper parameter for self-attention
-training_epochs = 3  # training epochs
+training_epochs = 2  # training epochs
 
 print("###### Load word embedding! ######")
 try:
