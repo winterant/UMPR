@@ -69,7 +69,6 @@ with tf.variable_scope("Textual_Matching"):
 
 # Review Network and Visual Network | Fusion for Rating
 with tf.variable_scope("FusionR"):
-    # W = tf.get_variable('W', (5, 6 * rnn_dim), initializer=tf.truncated_normal_initializer(stddev=0.1))
     W = tf.get_variable('W', (1, 2 * rnn_dim), initializer=tf.truncated_normal_initializer(stddev=0.1))
     b = tf.get_variable('b', (1,), initializer=tf.truncated_normal_initializer(stddev=0.1))
     W_expand = tf.tile(tf.expand_dims(W, 0), (in_batch_size, 1, 1))
@@ -77,15 +76,11 @@ with tf.variable_scope("FusionR"):
     # xV_p = tf.zeros((in_batch_size, 2 * rnn_dim))  # 临时代替Visual Network的输出
     # xV_n = tf.zeros((in_batch_size, 2 * rnn_dim))
     # x = tf.concat([xT, xV_p, xV_n], axis=1)  # shape=(in_batch_size,6u)
-    # y_sm = tf.nn.softmax(tf.nn.sigmoid(tf.squeeze(tf.matmul(W_expand, tf.expand_dims(x, 2)), [2]) + b_expand))
+    # y_sm = tf.squeeze(tf.matmul(W_expand, tf.expand_dims(x, 2)), [1, 2]) + b_expand
     y_sm = tf.squeeze(tf.matmul(W_expand, tf.expand_dims(xT, 2)), [1, 2]) + b_expand
 
 # Loss function and Optimizer
-# label_one_hot = tf.to_float(tf.one_hot(label_batch - tf.ones(tf.shape(label_batch), dtype=tf.int32), depth=5))
-# loss = tf.reduce_mean(tf.square(label_one_hot - y_sm))
 loss = tf.reduce_mean(tf.square(label_batch - y_sm))
-# loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-#     labels=(label_batch-tf.ones(tf.shape(label_batch), tf.int32)), logits=y_sm))
 optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
 
 # Session
