@@ -14,9 +14,8 @@ Control Network: Not finished
 2. Training data "reviews.json" contains 10000 samples selected from "yelp_academic_dataset_review.json" on https://www.yelp.com/dataset/documentation/main  
 
 # Requirements
-```shell script
-pip install -r requirements.txt
-```
+
+tensorflow 1.15.2
 
 # Running
 
