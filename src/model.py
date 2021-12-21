@@ -3,29 +3,26 @@ import torchvision
 from torch import nn
 
 
-class ImprovedRnn(nn.Module):
-    def __init__(self, module, *args, **kwargs):
-        assert module in (nn.RNN, nn.LSTM, nn.GRU)
-        super().__init__()
-        self.module = module(*args, **kwargs)
+class GRU(nn.GRU):
 
-    def forward(self, data, lengths):  # data shape(batch_size, seq_len, input_size)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def forward(self, input, lengths):
         if not hasattr(self, '_flattened'):
             self.module.flatten_parameters()
             setattr(self, '_flattened', True)
-        bf = self.module.batch_first
-        max_len = data.shape[1]
-        package = nn.utils.rnn.pack_padded_sequence(data, lengths.cpu(), batch_first=bf, enforce_sorted=False)
-        result, hidden = self.module(package)
-        result, lens = nn.utils.rnn.pad_packed_sequence(result, batch_first=bf, total_length=max_len)
-        return result[package.unsorted_indices], hidden
+        package = nn.utils.rnn.pack_padded_sequence(input, lengths.cpu(), batch_first=self.batch_first, enforce_sorted=False)
+        result, hn = super().forward(package)
+        output, lens = nn.utils.rnn.pad_packed_sequence(result, batch_first=self.batch_first, total_length=input.shape[self.batch_first])
+        return output, hn
 
 
 class RNet(nn.Module):
 
     def __init__(self, gru_in, gru_out, pretrained: str = None):
         super().__init__()
-        self.gru = ImprovedRnn(nn.GRU, input_size=gru_in, hidden_size=gru_out, batch_first=True, bidirectional=True)
+        self.gru = GRU(input_size=gru_in, hidden_size=gru_out, batch_first=True, bidirectional=True)
         self.M = nn.Parameter(torch.randn(2 * gru_out, 2 * gru_out))
         if pretrained is not None:
             try:
@@ -87,7 +84,7 @@ class CNet(nn.Module):
         super().__init__()
         self.threshold = threshold
 
-        self.gru = ImprovedRnn(nn.GRU, input_size=gru_in, hidden_size=gru_out, batch_first=True, bidirectional=True)
+        self.gru = GRU(input_size=gru_in, hidden_size=gru_out, batch_first=True, bidirectional=True)
         self.cnn = nn.Sequential(
             # permute(0,2,1) -> (temp_bs, 2*gru_out, s_length)
             nn.Conv1d(in_channels=2 * gru_out, out_channels=k_count, kernel_size=k_size, padding=(k_size - 1) // 2),
